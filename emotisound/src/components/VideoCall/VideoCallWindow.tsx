@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Phone, PhoneOff } from 'lucide-react';
 
 interface VideoCallWindowProps {
@@ -7,6 +7,7 @@ interface VideoCallWindowProps {
     onStart: (roomId: string) => Promise<void>;
     onEnd: () => void;
     videoRef: React.RefObject<HTMLVideoElement | null>;
+    remoteStreamsRef?: React.MutableRefObject<Map<string, MediaStream>>;
     error?: string | null;
 }
 
@@ -16,10 +17,25 @@ export const VideoCallWindow: React.FC<VideoCallWindowProps> = ({
     onStart,
     onEnd,
     videoRef,
+    remoteStreamsRef,
     error,
 }) => {
     const [inputRoomId, setInputRoomId] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const remoteVideoRef = React.useRef<HTMLVideoElement>(null);
+    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+
+    useEffect(() => {
+        if (remoteStreamsRef && remoteStreamsRef.current.size > 0) {
+            const firstStream = remoteStreamsRef.current.values().next().value;
+            if (firstStream) {
+                setRemoteStream(firstStream);
+                if (remoteVideoRef.current) {
+                    remoteVideoRef.current.srcObject = firstStream;
+                }
+            }
+        }
+    }, [peers, remoteStreamsRef]);
 
     const handleStartCall = async () => {
         if (!inputRoomId.trim()) {
@@ -43,15 +59,46 @@ export const VideoCallWindow: React.FC<VideoCallWindowProps> = ({
 
     return (
         <div className="space-y-4">
-            <div className="bg-black rounded-lg overflow-hidden aspect-video">
-                <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="w-full h-full object-cover"
-                />
-            </div>
+            {isActive && peers.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4">
+                    {/* Local video */}
+                    <div>
+                        <p className="text-sm text-gray-600 mb-2">You</p>
+                        <div className="bg-black rounded-lg overflow-hidden aspect-video">
+                            <video
+                                ref={videoRef}
+                                autoPlay
+                                playsInline
+                                muted
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Remote video */}
+                    <div>
+                        <p className="text-sm text-gray-600 mb-2">Caller</p>
+                        <div className="bg-black rounded-lg overflow-hidden aspect-video">
+                            <video
+                                ref={remoteVideoRef}
+                                autoPlay
+                                playsInline
+                                className="w-full h-full object-cover"
+                            />
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="bg-black rounded-lg overflow-hidden aspect-video">
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="w-full h-full object-cover"
+                    />
+                </div>
+            )}
 
             {!isActive ? (
                 <div className="flex gap-2">

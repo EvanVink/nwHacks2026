@@ -25,7 +25,7 @@ function App() {
 
   // Video call hook
   const videoCallRef = React.useRef<HTMLVideoElement>(null);
-  const { isCallActive, peers, error: callError, startCall, endCall } = useVideoCall(videoCallRef);
+  const { isCallActive, peers, error: callError, startCall, endCall, remoteStreamsRef } = useVideoCall(videoCallRef);
 
   // Emotion detection hook - use appropriate video ref based on current page
   const activeVideoRef = currentPage === 'videocall' ? videoCallRef : videoRef;
@@ -244,6 +244,7 @@ function App() {
                 onStart={startCall}
                 onEnd={endCall}
                 videoRef={videoCallRef}
+                remoteStreamsRef={remoteStreamsRef}
                 error={callError}
               />
               {isCallActive && (
