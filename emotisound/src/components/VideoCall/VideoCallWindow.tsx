@@ -8,6 +8,7 @@ interface VideoCallWindowProps {
     onEnd: () => void;
     videoRef: React.RefObject<HTMLVideoElement | null>;
     remoteStreamsRef?: React.MutableRefObject<Map<string, MediaStream>>;
+    remoteStreamsVersion?: number;
     debugLogs?: string[];
     error?: string | null;
 }
@@ -19,25 +20,25 @@ export const VideoCallWindow: React.FC<VideoCallWindowProps> = ({
     onEnd,
     videoRef,
     remoteStreamsRef,
+    remoteStreamsVersion,
     debugLogs,
     error,
 }) => {
     const [inputRoomId, setInputRoomId] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const remoteVideoRef = React.useRef<HTMLVideoElement>(null);
-    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    // Map peerId -> MediaStream (local state to trigger re-render)
+    const [remoteStreamsMap, setRemoteStreamsMap] = useState<Record<string, MediaStream | null>>({});
 
+    // Update remote streams map whenever peers list changes
     useEffect(() => {
-        if (remoteStreamsRef && remoteStreamsRef.current.size > 0) {
-            const firstStream = remoteStreamsRef.current.values().next().value;
-            if (firstStream) {
-                setRemoteStream(firstStream);
-                if (remoteVideoRef.current) {
-                    remoteVideoRef.current.srcObject = firstStream;
-                }
-            }
+        const map: Record<string, MediaStream | null> = {};
+        if (remoteStreamsRef) {
+            peers.forEach(id => {
+                map[id] = remoteStreamsRef.current.get(id) || null;
+            });
         }
-    }, [peers, remoteStreamsRef]);
+        setRemoteStreamsMap(map);
+    }, [peers, remoteStreamsRef, remoteStreamsVersion]);
 
     const handleStartCall = async () => {
         if (!inputRoomId.trim()) {
@@ -77,16 +78,28 @@ export const VideoCallWindow: React.FC<VideoCallWindowProps> = ({
                         </div>
                     </div>
 
-                    {/* Remote video */}
+                    {/* Remote videos (one per peer) */}
                     <div>
-                        <p className="text-sm text-gray-600 mb-2">Caller</p>
-                        <div className="bg-black rounded-lg overflow-hidden aspect-video">
-                            <video
-                                ref={remoteVideoRef}
-                                autoPlay
-                                playsInline
-                                className="w-full h-full object-cover"
-                            />
+                        <p className="text-sm text-gray-600 mb-2">Callers</p>
+                        <div className="space-y-3">
+                            {peers.length === 0 && <p className="text-gray-500">No callers yet</p>}
+                            {peers.map((peerId) => (
+                                <div key={peerId} className="bg-black rounded-lg overflow-hidden aspect-video">
+                                    <video
+                                        autoPlay
+                                        playsInline
+                                        className="w-full h-full object-cover"
+                                        ref={(el) => {
+                                            if (el) {
+                                                const stream = remoteStreamsMap[peerId];
+                                                if (stream && el.srcObject !== stream) {
+                                                    el.srcObject = stream;
+                                                }
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>

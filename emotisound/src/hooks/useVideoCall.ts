@@ -19,6 +19,7 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
     const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const localStreamRef = useRef<MediaStream | null>(null);
     const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+    const [remoteStreamsVersion, setRemoteStreamsVersion] = useState(0);
 
     const addDebugLog = useCallback((message: string) => {
         const timestamp = new Date().toLocaleTimeString();
@@ -43,6 +44,8 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
             console.log('Track event:', event);
             remoteStreamsRef.current.set(peerId, event.streams[0]);
             addDebugLog(`Stream stored for peer ${peerId}, total streams: ${remoteStreamsRef.current.size}`);
+            // bump version so UI can react to new streams
+            setRemoteStreamsVersion(v => v + 1);
         };
 
         // Handle ICE candidates
@@ -217,5 +220,6 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
         startCall,
         endCall,
         remoteStreamsRef,
+        remoteStreamsVersion,
     };
 }
