@@ -8,6 +8,7 @@ interface VideoCallWindowProps {
     onEnd: () => void;
     videoRef: React.RefObject<HTMLVideoElement | null>;
     remoteStreamsRef?: React.MutableRefObject<Map<string, MediaStream>>;
+    debugLogs?: string[];
     error?: string | null;
 }
 
@@ -18,6 +19,7 @@ export const VideoCallWindow: React.FC<VideoCallWindowProps> = ({
     onEnd,
     videoRef,
     remoteStreamsRef,
+    debugLogs,
     error,
 }) => {
     const [inputRoomId, setInputRoomId] = useState('');
@@ -135,6 +137,22 @@ export const VideoCallWindow: React.FC<VideoCallWindowProps> = ({
                     </button>
                 </div>
             )}
+
+            {/* Debug logs */}
+            <div className="bg-gray-900 text-gray-100 rounded-lg p-4 text-xs font-mono max-h-48 overflow-y-auto">
+                <p className="text-gray-400 mb-2">📊 Debug Logs:</p>
+                {debugLogs && debugLogs.length > 0 ? (
+                    <div className="space-y-1">
+                        {debugLogs.map((log, idx) => (
+                            <div key={idx} className="text-gray-300">
+                                {log}
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-gray-500">No logs yet...</p>
+                )}
+            </div>
         </div>
     );
 };

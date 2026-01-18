@@ -14,10 +14,18 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
     const [isCallActive, setIsCallActive] = useState(false);
     const [peers, setPeers] = useState<string[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [debugLogs, setDebugLogs] = useState<string[]>([]);
     const socketRef = useRef<Socket | null>(null);
     const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
     const localStreamRef = useRef<MediaStream | null>(null);
     const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+
+    const addDebugLog = useCallback((message: string) => {
+        const timestamp = new Date().toLocaleTimeString();
+        const logMessage = `[${timestamp}] ${message}`;
+        console.log(logMessage);
+        setDebugLogs(prev => [...prev.slice(-9), logMessage]); // Keep last 10 logs
+    }, []);
 
     const createPeerConnection = useCallback((peerId: string) => {
         const peerConnection = new RTCPeerConnection({ iceServers: ICE_SERVERS.iceServers });
@@ -31,8 +39,10 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
 
         // Handle remote stream
         peerConnection.ontrack = (event) => {
-            console.log('Received remote track:', event.track.kind);
+            addDebugLog(`✅ Received remote track: ${event.track.kind} from ${peerId}`);
+            console.log('Track event:', event);
             remoteStreamsRef.current.set(peerId, event.streams[0]);
+            addDebugLog(`Stream stored for peer ${peerId}, total streams: ${remoteStreamsRef.current.size}`);
         };
 
         // Handle ICE candidates
@@ -60,22 +70,25 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
     }, []);
 
     const initializeWebSocket = useCallback(() => {
+        addDebugLog('Initializing WebSocket...');
         socketRef.current = io(WEBSOCKET_URL, {
             transports: ['websocket'],
         });
 
         socketRef.current.on('connect', () => {
-            console.log('WebSocket connected');
+            addDebugLog('✅ WebSocket connected');
         });
 
         socketRef.current.on('peer-joined', async (peerId: string) => {
-            console.log('Peer joined:', peerId);
+            addDebugLog(`👤 Peer joined: ${peerId}`);
             setPeers(prev => Array.from(new Set([...prev, peerId])));
 
             // Create peer connection and send offer
+            addDebugLog(`Creating peer connection for ${peerId}`);
             const peerConnection = createPeerConnection(peerId);
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
+            addDebugLog(`Sending offer to ${peerId}`);
 
             socketRef.current?.emit('signal', {
                 to: peerId,
@@ -84,29 +97,35 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
         });
 
         socketRef.current.on('signal', async (data: any) => {
-            console.log('Received signal:', data.signal.type);
+            addDebugLog(`📡 Received signal: ${data.signal.type} from ${data.from}`);
             const { from, signal } = data;
 
             let peerConnection = peerConnectionsRef.current.get(from);
             if (!peerConnection) {
+                addDebugLog(`No peer connection found, creating new one for ${from}`);
                 peerConnection = createPeerConnection(from);
+                setPeers(prev => Array.from(new Set([...prev, from])));
             }
 
             if (signal.type === 'offer') {
+                addDebugLog(`Processing offer from ${from}`);
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
+                addDebugLog(`Sending answer to ${from}`);
 
                 socketRef.current?.emit('signal', {
                     to: from,
                     signal: answer,
                 });
             } else if (signal.type === 'answer') {
+                addDebugLog(`Processing answer from ${from}`);
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(signal));
             }
         });
 
         socketRef.current.on('ice-candidate', async (data: any) => {
+            addDebugLog(`🧊 Received ICE candidate from ${data.from}`);
             const { from, candidate } = data;
             const peerConnection = peerConnectionsRef.current.get(from);
 
@@ -114,13 +133,13 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
                 try {
                     await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
                 } catch (err) {
-                    console.error('Error adding ICE candidate:', err);
+                    addDebugLog(`❌ Error adding ICE candidate: ${err}`);
                 }
             }
         });
 
         socketRef.current.on('peer-left', (peerId: string) => {
-            console.log('Peer left:', peerId);
+            addDebugLog(`👋 Peer left: ${peerId}`);
             setPeers(prev => prev.filter(id => id !== peerId));
             const peerConn = peerConnectionsRef.current.get(peerId);
             if (peerConn) {
@@ -130,10 +149,10 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
         });
 
         socketRef.current.on('error', (err) => {
-            console.error('Socket error:', err);
+            addDebugLog(`❌ Socket error: ${err.message}`);
             setError(err.message || 'WebSocket error occurred');
         });
-    }, [createPeerConnection]);
+    }, [createPeerConnection, addDebugLog]);
 
     const startCall = useCallback(async (roomId: string) => {
         try {
@@ -194,9 +213,9 @@ export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>)
         isCallActive,
         peers,
         error,
+        debugLogs,
         startCall,
         endCall,
-        socketRef,
         remoteStreamsRef,
     };
 }
