@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_URL || 'http://localhost:3002';
+// const WEBSOCKET_URL = process.env.REACT_APP_WEBSOCKET_URL || 'http://localhost:3002';
+const WEBSOCKET_URL = 'wss://testnw.onrender.com/'
 
 export function useVideoCall(videoRef: React.RefObject<HTMLVideoElement | null>) {
     const [isCallActive, setIsCallActive] = useState(false);
