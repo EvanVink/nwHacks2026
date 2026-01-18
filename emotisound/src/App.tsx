@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { LogOut, Home, BarChart3 } from 'lucide-react';
+import { LogOut, Home, BarChart3, Phone } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { useCamera } from './hooks/useCamera';
 import { useEmotionDetection } from './hooks/useEmotionDetection';
+import { useVideoCall } from './hooks/useVideoCall';
 import { Login } from './components/Auth/Login';
 import { Register } from './components/Auth/Register';
 import { VideoPreview } from './components/Camera/VideoPreview';
 import { EmotionDisplay } from './components/UI/EmotionDisplay';
 import { AudioControls } from './components/Audio/AudioControls';
 import { Analytics } from './components/Analytics/Dashboard';
+import { VideoCallWindow } from './components/VideoCall/VideoCallWindow';
 import audioEngine from './services/audioEngine';
 
 type View = 'login' | 'register' | 'app';
@@ -17,14 +19,20 @@ function App() {
   const { user, loading: authLoading, login, register, logout, isAuthenticated } = useAuth();
   const { videoRef, isActive, error: cameraError, hasPermission, startCamera, stopCamera } = useCamera();
   const [view, setView] = useState<View>('login');
-  const [currentPage, setCurrentPage] = useState<'home' | 'analytics'>('home');
+  const [currentPage, setCurrentPage] = useState<'home' | 'analytics' | 'videocall'>('home');
   const [volume, setVolume] = useState(0.5);
   const [sensitivity, setSensitivity] = useState(0.7);
 
-  // Emotion detection hook
+  // Video call hook
+  const videoCallRef = React.useRef<HTMLVideoElement>(null);
+  const { isCallActive, peers, error: callError, startCall, endCall } = useVideoCall(videoCallRef);
+
+  // Emotion detection hook - use appropriate video ref based on current page
+  const activeVideoRef = currentPage === 'videocall' ? videoCallRef : videoRef;
+  const shouldDetectEmotion = currentPage === 'videocall' ? isCallActive : isActive;
   const { currentEmotion, confidence, audioEnabled, toggleAudio, error: detectionError } = useEmotionDetection(
-    videoRef,
-    isActive
+    activeVideoRef,
+    shouldDetectEmotion
   );
 
   // Initialize audio engine on app load
@@ -60,6 +68,9 @@ function App() {
   const handleLogout = async () => {
     if (isActive) {
       stopCamera();
+    }
+    if (isCallActive) {
+      endCall();
     }
     await logout();
     setView('login');
@@ -124,8 +135,8 @@ function App() {
               <button
                 onClick={() => setCurrentPage('home')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${currentPage === 'home'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 aria-label="Home"
               >
@@ -133,10 +144,21 @@ function App() {
                 <span className="hidden sm:inline">Home</span>
               </button>
               <button
+                onClick={() => setCurrentPage('videocall')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${currentPage === 'videocall'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                aria-label="Video Call"
+              >
+                <Phone size={20} />
+                <span className="hidden sm:inline">Video Call</span>
+              </button>
+              <button
                 onClick={() => setCurrentPage('analytics')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${currentPage === 'analytics'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-700 hover:bg-gray-100'
+                  ? 'bg-blue-500 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 aria-label="Analytics"
               >
@@ -212,6 +234,24 @@ function App() {
                 <h2 className="text-xl font-semibold text-gray-800 mb-6">Emotion Detection</h2>
                 <EmotionDisplay emotion={currentEmotion} confidence={confidence} />
               </div>
+            </div>
+          ) : currentPage === 'videocall' ? (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-6">Video Call with Emotion Detection</h2>
+              <VideoCallWindow
+                isActive={isCallActive}
+                peers={peers}
+                onStart={startCall}
+                onEnd={endCall}
+                videoRef={videoCallRef}
+                error={callError}
+              />
+              {isCallActive && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Emotion Detection (Video Call)</h3>
+                  <EmotionDisplay emotion={currentEmotion} confidence={confidence} />
+                </div>
+              )}
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow p-6">
